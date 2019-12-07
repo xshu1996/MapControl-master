@@ -1,2 +1,2 @@
-# MapControl-master
-Welcome My First project~
+# hello-world
+Hello world new project template.

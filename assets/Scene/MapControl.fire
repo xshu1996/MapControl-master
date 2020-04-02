@@ -41,8 +41,8 @@
     },
     "_scale": {
       "__type__": "cc.Vec3",
-      "x": 0.3930491201320149,
-      "y": 0.3930491201320149,
+      "x": 0.3082968806530009,
+      "y": 0.3082968806530009,
       "z": 1
     },
     "_quat": {
@@ -501,6 +501,10 @@
     "scaleTime": {
       "__id__": 12
     },
+    "maxScale": 3,
+    "minScale": 1,
+    "moveOffset": 2,
+    "increaseRate": 10000,
     "_id": "e9ugz73lhJgaazDdXHW9S9"
   },
   {

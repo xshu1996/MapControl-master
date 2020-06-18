@@ -14,6 +14,12 @@ class MapControl extends cc.Component {
     })
     public map: cc.Node = null;
 
+    @property({
+        type: cc.Node,
+        tooltip: '目标节点容器'
+    })
+    public mapContainer: cc.Node = null;
+
     @property(cc.Label)
     public scaleTime: cc.Label = null;
 
@@ -47,7 +53,15 @@ class MapControl extends cc.Component {
 
     private isMoving: boolean = false; // 是否拖动地图flag
     private mapTouchList: any[] = []; // 触摸点列表容器
-    private isStrict: boolean = false; // 默认为非严格模式
+
+    @property
+    public isStrict: boolean = false; // 默认为非严格模式
+
+    protected onLoad(): void {
+        this.mapContainer = cc.isValid(this.mapContainer)
+            ? this.mapContainer
+            : this.map.parent;
+    }
 
     protected start() {
         this.addEvent();
@@ -55,7 +69,7 @@ class MapControl extends cc.Component {
     }
 
     // 有些设备单点过于灵敏，单点操作会触发TOUCH_MOVE回调，在这里作误差值判断
-    private canStartMove (touch: any): boolean {
+    private canStartMove(touch: any): boolean {
         let startPos: any = touch.getStartLocation();
         let nowPos: any = touch.getLocation();
         // 有些设备单点过于灵敏，单点操作会触发TOUCH_MOVE回调，在这里作误差值判断
@@ -83,11 +97,11 @@ class MapControl extends cc.Component {
                     })
                     .forEach(v => { // 将有效的触摸点放在容器里自行管理
                         let intersection: any[] = this.mapTouchList.filter(v1 => v1.id === v.getID());
-                        if (intersection.length === 0) 
+                        if (intersection.length === 0)
                             this.mapTouchList[this.mapTouchList.length] = ({ id: v.getID(), touch: v });
                     });
-                touches = this.mapTouchList;
-            } 
+                touches = this.mapTouchList.map(v => v.touch);
+            }
 
             if (touches.length >= 2) {
                 // multi touch
@@ -122,7 +136,7 @@ class MapControl extends cc.Component {
 
         this.node.on(cc.Node.EventType.TOUCH_END, function (event: any) {
             if (this.locked) return;
-            
+
             let touches: any[] = this.isStrict ? this.mapTouchList : event.getTouches();
             if (touches.length <= 1) {
                 if (!this.isMoving) {
@@ -132,7 +146,7 @@ class MapControl extends cc.Component {
                 }
                 this.isMoving = false; // 当容器中仅剩最后一个触摸点时将移动flag还原
             };
-            if (this.isStrict) 
+            if (this.isStrict)
                 this.removeTouchFromContent(event, this.mapTouchList);
         }, this);
 
@@ -143,13 +157,13 @@ class MapControl extends cc.Component {
             // 当容器中仅剩最后一个触摸点时将移动flag还原
             if (touches.length <= 1) this.isMoving = false;
 
-            if (this.isStrict) 
+            if (this.isStrict)
                 this.removeTouchFromContent(event, this.mapTouchList);
         }, this);
 
         this.node.on(cc.Node.EventType.MOUSE_WHEEL, function (event: any) {
             if (this.locked) return;
-            
+
             let worldPos: cc.Vec2 = cc.v2(event.getLocation());
             let scrollDelta: number = event.getScrollY();
             let scale: number = (this.map.scale + (scrollDelta / this.increaseRate));
@@ -184,8 +198,8 @@ class MapControl extends cc.Component {
         else {
             scale = cc.misc.clampf(scale, this.minScale, this.maxScale);
         }
-        // 更新 label 显示
-        this.scaleTime.string = `${Math.floor(scale * 100)}%`;
+        if (cc.isValid(this.scaleTime)) // 更新 label 显示
+            this.scaleTime.string = `${Math.floor(scale * 100)}%`;
     }
 
     private dealScalePos(pos: cc.Vec2, target: cc.Node): void {
@@ -242,7 +256,7 @@ class MapControl extends cc.Component {
         let right: number = horizontalDistance - nodePos.x;
         let top: number = verticalDistance - nodePos.y;
         let bottom: number = verticalDistance + nodePos.y;
-        
+
         return { left, right, top, bottom };
     }
 

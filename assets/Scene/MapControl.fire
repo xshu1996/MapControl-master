@@ -180,7 +180,7 @@
       "array": [
         0,
         0,
-        252.01339250127165,
+        220.83647796503186,
         0,
         0,
         0,
@@ -433,6 +433,9 @@
     "map": {
       "__id__": 6
     },
+    "mapContainer": {
+      "__id__": 5
+    },
     "scaleTime": {
       "__id__": 10
     },
@@ -441,6 +444,7 @@
     "maxScale": 4,
     "moveOffset": 2,
     "increaseRate": 10000,
+    "isStrict": false,
     "_id": "62E+BnCrZJXLtZYW2erjm7"
   },
   {

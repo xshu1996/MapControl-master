@@ -46,6 +46,8 @@ class MapControl extends cc.Component {
     public singleTouchCb: Function = null; // 点击回调函数
 
     private isMoving: boolean = false; // 是否拖动地图flag
+    private mapTouchList: any[] = []; // 触摸点列表容器
+    private isStrict: boolean = false; // 默认为非严格模式
 
     protected start() {
         this.addEvent();
@@ -54,27 +56,48 @@ class MapControl extends cc.Component {
 
     // 有些设备单点过于灵敏，单点操作会触发TOUCH_MOVE回调，在这里作误差值判断
     private canStartMove (touch: any): boolean {
-        let startPos: cc.Vec2 = touch.getStartLocation();
-        let nowPos: cc.Vec2 = touch.getLocation();
+        let startPos: any = touch.getStartLocation();
+        let nowPos: any = touch.getLocation();
         // 有些设备单点过于灵敏，单点操作会触发TOUCH_MOVE回调，在这里作误差值判断
         return (Math.abs(nowPos.x - startPos.x) > this.moveOffset
             || Math.abs(nowPos.y - startPos.y) > this.moveOffset);
     }
 
-    private addEvent() {
+    private addEvent(): void {
         this.node.on(cc.Node.EventType.TOUCH_MOVE, function (event: any) {
             if (this.locked) return;
 
             let touches: any[] = event.getTouches(); // 获取所有触摸点
+            if (this.isStrict) { // 严格模式下过滤掉初始点击位置不在目标节点范围内的触摸点
+                touches
+                    .filter(v => {
+                        let startPos: cc.Vec2 = cc.v2(v.getStartLocation()); // 触摸点最初的位置
+                        let worldPos: cc.Vec2 = this.mapContainer.convertToWorldSpaceAR(cc.Vec2.ZERO);
+                        let worldRect: cc.Rect = cc.rect(
+                            worldPos.x - this.mapContainer.width / 2,
+                            worldPos.y - this.mapContainer.height / 2,
+                            this.mapContainer.width,
+                            this.mapContainer.height
+                        );
+                        return worldRect.contains(startPos);
+                    })
+                    .forEach(v => { // 将有效的触摸点放在容器里自行管理
+                        let intersection: any[] = this.mapTouchList.filter(v1 => v1.id === v.getID());
+                        if (intersection.length === 0) 
+                            this.mapTouchList[this.mapTouchList.length] = ({ id: v.getID(), touch: v });
+                    });
+                touches = this.mapTouchList;
+            } 
+
             if (touches.length >= 2) {
                 // multi touch
                 this.isMoving = true;
                 let touch1: any = touches[0];
                 let touch2: any = touches[1];
-                let delta1: cc.Vec2 = touch1.getDelta();
-                let delta2: cc.Vec2 = touch2.getDelta();
-                let touchPoint1: cc.Vec2 = this.map.convertToNodeSpaceAR(touch1.getLocation());
-                let touchPoint2: cc.Vec2 = this.map.convertToNodeSpaceAR(touch2.getLocation());
+                let delta1: cc.Vec2 = cc.v2(touch1.getDelta());
+                let delta2: cc.Vec2 = cc.v2(touch2.getDelta());
+                let touchPoint1: cc.Vec2 = this.map.convertToNodeSpaceAR(cc.v2(touch1.getLocation()));
+                let touchPoint2: cc.Vec2 = this.map.convertToNodeSpaceAR(cc.v2(touch2.getLocation()));
                 let distance: cc.Vec2 = touchPoint1.sub(touchPoint2);
                 let delta: cc.Vec2 = delta1.sub(delta2);
                 let scale: number = 1;
@@ -91,36 +114,43 @@ class MapControl extends cc.Component {
                 // single touch
                 if (this.isMoving || this.canStartMove(touches[0])) {
                     this.isMoving = true;
-                    this.dealMove(touches[0].getDelta(), this.map, this.node);
+                    let dir: cc.Vec2 = cc.v2(touches[0].getDelta());
+                    this.dealMove(dir, this.map, this.node);
                 }
             }
         }, this);
 
         this.node.on(cc.Node.EventType.TOUCH_END, function (event: any) {
             if (this.locked) return;
-
-            if (event.getTouches().length <= 1) {
+            
+            let touches: any[] = this.isStrict ? this.mapTouchList : event.getTouches();
+            if (touches.length <= 1) {
                 if (!this.isMoving) {
-                    let worldPos: cc.Vec2 = event.getLocation();
+                    let worldPos: cc.Vec2 = cc.v2(event.getLocation());
                     let nodePos: cc.Vec2 = this.map.convertToNodeSpaceAR(worldPos);
                     this.dealSelect(nodePos);
                 }
                 this.isMoving = false; // 当容器中仅剩最后一个触摸点时将移动flag还原
             };
+            if (this.isStrict) 
+                this.removeTouchFromContent(event, this.mapTouchList);
         }, this);
 
         this.node.on(cc.Node.EventType.TOUCH_CANCEL, function (event: any) {
             if (this.locked) return;
 
-            if (event.getTouches().length <= 1) { // 当容器中仅剩最后一个触摸点时讲移动flag还原
-                this.isMoving = false;
-            }
+            let touches: any[] = this.isStrict ? this.mapTouchList : event.getTouches();
+            // 当容器中仅剩最后一个触摸点时将移动flag还原
+            if (touches.length <= 1) this.isMoving = false;
+
+            if (this.isStrict) 
+                this.removeTouchFromContent(event, this.mapTouchList);
         }, this);
 
         this.node.on(cc.Node.EventType.MOUSE_WHEEL, function (event: any) {
             if (this.locked) return;
             
-            let worldPos: cc.Vec2 = event.getLocation();
+            let worldPos: cc.Vec2 = cc.v2(event.getLocation());
             let scrollDelta: number = event.getScrollY();
             let scale: number = (this.map.scale + (scrollDelta / this.increaseRate));
 
@@ -130,7 +160,15 @@ class MapControl extends cc.Component {
         }, this);
     }
 
-    private smoothOperate(target: cc.Node, pos: cc.Vec2, scale: number) {
+    public removeTouchFromContent(event: any, content: any[]): void {
+        let eventToucheIDs: number[] = event['getTouches']().map(v => v.getID());
+        for (let len = content.length, i = len - 1; i >= 0; --i) {
+            if (eventToucheIDs.indexOf(content[i].id) > -1)
+                content.splice(i, 1); // 删除触摸
+        }
+    }
+
+    private smoothOperate(target: cc.Node, pos: cc.Vec2, scale: number): void {
         // 放大缩小
         if (this.minScale <= scale && scale <= this.maxScale) {
             // 当前缩放值与原来缩放值之差
@@ -150,7 +188,7 @@ class MapControl extends cc.Component {
         this.scaleTime.string = `${Math.floor(scale * 100)}%`;
     }
 
-    private dealScalePos(pos: cc.Vec2, target: cc.Node) {
+    private dealScalePos(pos: cc.Vec2, target: cc.Node): void {
         if (target.scale === 1) {
             pos = cc.Vec2.ZERO;
         }
@@ -174,7 +212,7 @@ class MapControl extends cc.Component {
         target.position = pos;
     }
 
-    private dealMove(dir: cc.Vec2, map: cc.Node, container: cc.Node) {
+    private dealMove(dir: cc.Vec2, map: cc.Node, container: cc.Node): void {
         let worldPos: cc.Vec2 = map.convertToWorldSpaceAR(cc.Vec2.ZERO);
         let nodePos: cc.Vec2 = container.convertToNodeSpaceAR(worldPos);
         nodePos.x += dir.x;
@@ -188,7 +226,7 @@ class MapControl extends cc.Component {
         }
     }
 
-    private dealSelect(nodePos: cc.Vec2) {
+    private dealSelect(nodePos: cc.Vec2): void {
         cc.log(`click map on (${nodePos.x}, ${nodePos.y})`);
         // do sth
         if (this.singleTouchCb) this.singleTouchCb(nodePos);
@@ -206,6 +244,19 @@ class MapControl extends cc.Component {
         let bottom: number = verticalDistance + nodePos.y;
         
         return { left, right, top, bottom };
+    }
+
+    /**
+     * @brief 设置是否严格模式，如果为严格模式，则会过滤不在目标身上的触摸点， 反之不作处理
+     *              默认为非严格模式
+     * @param isStrict 
+     */
+    public setStrictPattern(isStrict: boolean): void {
+        this.isStrict = isStrict;
+    }
+
+    public getStrictPattern(): boolean {
+        return this.isStrict;
     }
 }
 

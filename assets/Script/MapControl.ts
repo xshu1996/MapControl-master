@@ -14,12 +14,6 @@ class MapControl extends cc.Component {
     })
     public map: cc.Node = null;
 
-    @property({
-        type: cc.Node,
-        tooltip: '目标节点容器'
-    })
-    public mapContainer: cc.Node = null;
-
     @property(cc.Label)
     public scaleTime: cc.Label = null;
 
@@ -58,9 +52,7 @@ class MapControl extends cc.Component {
     public isStrict: boolean = false; // 默认为非严格模式
 
     protected onLoad(): void {
-        this.mapContainer = cc.isValid(this.mapContainer)
-            ? this.mapContainer
-            : this.map.parent;
+
     }
 
     protected start() {
@@ -86,12 +78,12 @@ class MapControl extends cc.Component {
                 touches
                     .filter(v => {
                         let startPos: cc.Vec2 = cc.v2(v.getStartLocation()); // 触摸点最初的位置
-                        let worldPos: cc.Vec2 = this.mapContainer.convertToWorldSpaceAR(cc.Vec2.ZERO);
+                        let worldPos: cc.Vec2 = this.node.convertToWorldSpaceAR(cc.Vec2.ZERO);
                         let worldRect: cc.Rect = cc.rect(
-                            worldPos.x - this.mapContainer.width / 2,
-                            worldPos.y - this.mapContainer.height / 2,
-                            this.mapContainer.width,
-                            this.mapContainer.height
+                            worldPos.x - this.node.width / 2,
+                            worldPos.y - this.node.height / 2,
+                            this.node.width,
+                            this.node.height
                         );
                         return worldRect.contains(startPos);
                     })

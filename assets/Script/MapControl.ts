@@ -42,6 +42,13 @@ class MapControl extends cc.Component {
     })
     public increaseRate: number = 10000;
 
+    @property({
+        displayName: '双指缩放速率',
+        max: 10,
+        min: 0.001,
+    })
+    public fingerIncreaseRate: number = 1;
+
     public locked: boolean = false; // 操作锁
     public singleTouchCb: Function = null; // 点击回调函数
 
@@ -96,6 +103,7 @@ class MapControl extends cc.Component {
             }
 
             if (touches.length >= 2) {
+                // cc.log('multi touch');
                 // multi touch
                 this.isMoving = true;
                 let touch1: any = touches[0];
@@ -105,7 +113,8 @@ class MapControl extends cc.Component {
                 let touchPoint1: cc.Vec2 = this.map.convertToNodeSpaceAR(cc.v2(touch1.getLocation()));
                 let touchPoint2: cc.Vec2 = this.map.convertToNodeSpaceAR(cc.v2(touch2.getLocation()));
                 let distance: cc.Vec2 = touchPoint1.sub(touchPoint2);
-                let delta: cc.Vec2 = delta1.sub(delta2);
+                const rateV2: cc.Vec2 = cc.v2(this.fingerIncreaseRate, this.fingerIncreaseRate);
+                let delta: cc.Vec2 = delta1.sub(delta2).scale(rateV2);
                 let scale: number = 1;
                 if (Math.abs(distance.x) > Math.abs(distance.y)) {
                     scale = (distance.x + delta.x) / distance.x * this.map.scaleX;
@@ -117,6 +126,7 @@ class MapControl extends cc.Component {
                 this.smoothOperate(this.map, pos, scale);
             }
             else if (touches.length === 1) {
+                // cc.log('single touch');
                 // single touch
                 if (this.isMoving || this.canStartMove(touches[0])) {
                     this.isMoving = true;
@@ -183,14 +193,19 @@ class MapControl extends cc.Component {
             let gapPos: cc.Vec2 = pos.scale(cc.v2(deltaScale, deltaScale));
             // 当前node坐标位置减去点击 点击坐标和缩放值的值
             let mapPos: cc.Vec2 = target.position.sub(gapPos);
-            scale = Math.floor(scale * 100) / 100;
+            // 获取速率的小数后几位，防止速率过小时取整直接舍弃掉了变化
+            const rateStr: string = this.fingerIncreaseRate.toString();
+            const digit: number = rateStr.split('.')[1] ? rateStr.split('.')[1].length : 0;
+            const rate: number = Math.pow(10, 2 + digit);
+            scale = Math.floor(scale * rate) / rate;
             target.scale = scale;
             this.dealScalePos(mapPos, target);
         }
         else {
             scale = cc.misc.clampf(scale, this.minScale, this.maxScale);
         }
-        if (cc.isValid(this.scaleTime)) // 更新 label 显示
+        // render ui
+        if (cc.isValid(this.scaleTime))
             this.scaleTime.string = `${Math.floor(scale * 100)}%`;
     }
 
